@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>System Information</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .info-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #3498db;
+            margin-right: 10px;
+        }
+        .info-value {
+            font-family: 'Courier New', monospace;
+            color: #2c3e50;
+            word-break: break-all;
+        }
+        #error {
+            background-color: #ffeef0;
+            color: #e74c3c;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        .refresh-info {
+            text-align: center;
+            margin-top: 30px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-up {
+            background-color: #2ecc71;
+        }
+        .status-down {
+            background-color: #e74c3c;
+        }
+        #refresh-btn {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        #refresh-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>System Information</h1>
+   
+    <div class="info-card">
+        <p>
+            <span id="ip-status" class="status-indicator status-up"></span>
+            <span class="info-label">IPv4 Address:</span>
+            <span id="ip-value" class="info-value">Loading...</span>
+        </p>
+    </div>
+        
+    <div class="info-card">
+        <p>
+            <span id="gateway-status" class="status-indicator status-up"></span>
+            <span class="info-label">Gateway Address:</span>
+            <span id="gateway-value" class="info-value">Loading...</span>
+        </p>
+    </div>
+
+    <div class="info-card">
+        <p>
+            <span id="dns-status" class="status-indicator status-up"></span>
+            <span class="info-label">IPv4 DNS:</span>
+            <span id="dns-value" class="info-value">Loading...</span>
+        </p>
+    </div>
+
+    <div id="error"></div>
+    
+    <div class="refresh-info">
+        <p>Auto-refreshes every 10 seconds</p>
+        <p>Last refreshed: <span id="last-refresh">--:--:--</span></p>
+        <button id="refresh-btn">Refresh Now</button>
+    </div>
+
+    <script>
+        // DOM elements
+        const dnsValueElement = document.getElementById('dns-value');
+        const ipValueElement = document.getElementById('ip-value');
+        const gatewayValueElement = document.getElementById('gateway-value');
+        const dnsStatusElement = document.getElementById('dns-status');
+        const ipStatusElement = document.getElementById('ip-status');
+        const gatewayStatusElement = document.getElementById('gateway-status');
+        const errorElement = document.getElementById('error');
+        const lastRefreshElement = document.getElementById('last-refresh');
+        const refreshButton = document.getElementById('refresh-btn');
+        
+        // Base URL for API endpoints
+        const baseURL = window.location.origin;
+        
+        // Track active requests
+        let isFetching = false;
+        
+        async function fetchData() {
+            if (isFetching) return;
+            isFetching = true;
+            refreshButton.disabled = true;
+            
+            try {
+                // Clear previous errors
+                errorElement.style.display = 'none';
+                errorElement.textContent = '';
+                
+                // Show loading state
+                dnsValueElement.textContent = 'Loading...';
+                ipValueElement.textContent = 'Loading...';
+                gatewayValueElement.textContent = 'Loading...';
+                dnsStatusElement.className = 'status-indicator status-up';
+                ipStatusElement.className = 'status-indicator status-up';
+                gatewayStatusElement.className = 'status-indicator status-up';
+                // Fetch both endpoints in parallel with 5-second timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const [ipRes, gatewayRes, dnsRes] = await Promise.all([
+                    fetch(`${baseURL}/ipv4Address`, { signal: controller.signal }),
+                    fetch(`${baseURL}/ipv4Gateway`, { signal: controller.signal }),
+                    fetch(`${baseURL}/ipv4dns`, { signal: controller.signal })
+                    
+                    
+                ]);
+                
+                clearTimeout(timeoutId);
+                
+                // Handle DNS response
+                if (!dnsRes.ok) {
+                    throw new Error(`DNS API error: ${dnsRes.status} ${dnsRes.statusText}`);
+                }
+                const dns = await dnsRes.text();
+                
+                // Handle IP response
+                if (!ipRes.ok) {
+                    throw new Error(`IP API error: ${ipRes.status} ${ipRes.statusText}`);
+                }
+                const ip = await ipRes.text();
+                
+                // Handle Gateway response
+                if (!gatewayRes.ok) {
+                    throw new Error(`Gateway API error: ${gatewayRes.status} ${gatewayRes.statusText}`);
+                }
+                const gateway = await gatewayRes.text();
+
+                // Update the DOM
+                ipValueElement.textContent = ip;
+                gatewayValueElement.textContent = gateway;
+                dnsValueElement.textContent = dns;
+
+                // Update last refreshed time
+                lastRefreshElement.textContent = new Date().toLocaleTimeString();
+                
+            } catch (error) {
+                console.error('Fetch error:', error);
+                
+                // Update status indicators
+                dnsStatusElement.className = 'status-indicator status-down';
+                ipStatusElement.className = 'status-indicator status-down';
+                gatewayStatusElement.className = 'status-indicator status-down';
+                // Show error message
+                errorElement.textContent = `Error: ${error.message}`;
+                errorElement.style.display = 'block';
+                
+                // Set placeholder values
+                dnsValueElement.textContent = 'Unavailable';
+                ipValueElement.textContent = 'Unavailable';
+                gatewayValueElement.textContent = 'Unavailable';
+
+            } finally {
+                isFetching = false;
+                refreshButton.disabled = false;
+            }
+        }
+
+        // Initialize and set up auto-refresh
+        window.addEventListener('DOMContentLoaded', () => {
+            // Initial fetch
+            fetchData();
+            
+            // Set up auto-refresh every 10 seconds
+            setInterval(fetchData, 10000);
+            
+            // Add manual refresh button handler
+            refreshButton.addEventListener('click', fetchData);
+        });
+    </script>
+</body>
+</html>
