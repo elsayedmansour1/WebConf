@@ -99,6 +99,14 @@
 
     <div class="info-card">
         <p>
+            <span id="subnet-status" class="status-indicator status-up"></span>
+            <span class="info-label">IPv4 subnet:</span>
+            <span id="subnet-value" class="info-value">Loading...</span>
+        </p>
+    </div>
+
+    <div class="info-card">
+        <p>
             <span id="dns-status" class="status-indicator status-up"></span>
             <span class="info-label">IPv4 DNS:</span>
             <span id="dns-value" class="info-value">Loading...</span>
@@ -115,12 +123,14 @@
 
     <script>
         // DOM elements
-        const dnsValueElement = document.getElementById('dns-value');
-        const ipValueElement = document.getElementById('ip-value');
-        const gatewayValueElement = document.getElementById('gateway-value');
-        const dnsStatusElement = document.getElementById('dns-status');
         const ipStatusElement = document.getElementById('ip-status');
+        const ipValueElement = document.getElementById('ip-value');
         const gatewayStatusElement = document.getElementById('gateway-status');
+        const gatewayValueElement = document.getElementById('gateway-value');
+        const subnetStatusElement = document.getElementById('subnet-status');
+        const subnetValueElement = document.getElementById('subnet-value');
+        const dnsStatusElement = document.getElementById('dns-status');
+        const dnsValueElement = document.getElementById('dns-value');
         const errorElement = document.getElementById('error');
         const lastRefreshElement = document.getElementById('last-refresh');
         const refreshButton = document.getElementById('refresh-btn');
@@ -142,48 +152,58 @@
                 errorElement.textContent = '';
                 
                 // Show loading state
-                dnsValueElement.textContent = 'Loading...';
                 ipValueElement.textContent = 'Loading...';
-                gatewayValueElement.textContent = 'Loading...';
-                dnsStatusElement.className = 'status-indicator status-up';
                 ipStatusElement.className = 'status-indicator status-up';
+                gatewayValueElement.textContent = 'Loading...';
                 gatewayStatusElement.className = 'status-indicator status-up';
+                subnetValueElement.textContent = 'Loading...';
+                subnetStatusElement.className = 'status-indicator status-up';
+                dnsValueElement.textContent = 'Loading...';
+                dnsStatusElement.className = 'status-indicator status-up';
                 // Fetch both endpoints in parallel with 5-second timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
                 
-                const [ipRes, gatewayRes, dnsRes] = await Promise.all([
+                const [ipV4Res, gatewayV4Res, subnetV4Res, dnsV4Res] = await Promise.all([
                     fetch(`${baseURL}/ipv4Address`, { signal: controller.signal }),
                     fetch(`${baseURL}/ipv4Gateway`, { signal: controller.signal }),
-                    fetch(`${baseURL}/ipv4dns`, { signal: controller.signal })
-                    
-                    
+                    fetch(`${baseURL}/ipv4Subnet`, { signal: controller.signal }),
+                    fetch(`${baseURL}/ipv4Dns`, { signal: controller.signal })
                 ]);
                 
                 clearTimeout(timeoutId);
                 
-                // Handle DNS response
-                if (!dnsRes.ok) {
-                    throw new Error(`DNS API error: ${dnsRes.status} ${dnsRes.statusText}`);
+                // Handle IPv4 response
+                if (!ipV4Res.ok) {
+                    throw new Error(`IP API error: ${ipV4Res.status} ${ipV4Res.statusText}`);
                 }
-                const dns = await dnsRes.text();
+                const ipV4 = await ipV4Res.text();
+
+                // Handle Gatewayv4 response
+                if (!gatewayV4Res.ok) {
+                    throw new Error(`Gateway API error: ${gatewayV4Res.status} ${gatewayV4Res.statusText}`);
+                }
+                const gatewayV4 = await gatewayV4Res.text();
+
+                // Handle Subnetv4 response
+                if (!subnetV4Res.ok) {
+                    throw new Error(`Subnet API error: ${subnetV4Res.status} ${subnetV4Res.statusText}`);
+                }
+                const subnetV4 = await subnetV4Res.text();
+
+                // Handle DNSv4 response
+                if (!dnsV4Res.ok) {
+                    throw new Error(`DNS API error: ${dnsV4Res.status} ${dnsV4Res.statusText}`);
+                }
+                const dnsV4 = await dnsV4Res.text();
                 
-                // Handle IP response
-                if (!ipRes.ok) {
-                    throw new Error(`IP API error: ${ipRes.status} ${ipRes.statusText}`);
-                }
-                const ip = await ipRes.text();
                 
-                // Handle Gateway response
-                if (!gatewayRes.ok) {
-                    throw new Error(`Gateway API error: ${gatewayRes.status} ${gatewayRes.statusText}`);
-                }
-                const gateway = await gatewayRes.text();
 
                 // Update the DOM
-                ipValueElement.textContent = ip;
-                gatewayValueElement.textContent = gateway;
-                dnsValueElement.textContent = dns;
+                ipValueElement.textContent = ipV4;
+                gatewayValueElement.textContent = gatewayV4;
+                subnetValueElement.textContent = subnetV4;
+                dnsValueElement.textContent = dnsV4;
 
                 // Update last refreshed time
                 lastRefreshElement.textContent = new Date().toLocaleTimeString();
@@ -192,17 +212,19 @@
                 console.error('Fetch error:', error);
                 
                 // Update status indicators
-                dnsStatusElement.className = 'status-indicator status-down';
                 ipStatusElement.className = 'status-indicator status-down';
                 gatewayStatusElement.className = 'status-indicator status-down';
+                subnetStatusElement.className = 'status-indicator status-down';
+                dnsStatusElement.className = 'status-indicator status-down';
                 // Show error message
                 errorElement.textContent = `Error: ${error.message}`;
                 errorElement.style.display = 'block';
                 
                 // Set placeholder values
-                dnsValueElement.textContent = 'Unavailable';
                 ipValueElement.textContent = 'Unavailable';
                 gatewayValueElement.textContent = 'Unavailable';
+                subnetValueElement.textContent = 'Unavailable';
+                dnsValueElement.textContent = 'Unavailable';
 
             } finally {
                 isFetching = false;
